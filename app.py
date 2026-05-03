@@ -10,17 +10,30 @@ from ta.volatility import BollingerBands
 st.set_page_config(page_title="주식 분석기", layout="wide")
 st.title("📈 주식 차트 분석기")
 
-STOCKS = {
+STOCKS_KR = {
     "삼성전자": "005930.KS",
     "SK하이닉스": "000660.KS",
     "NAVER": "035420.KS",
     "카카오": "035720.KS",
     "LG에너지솔루션": "373220.KS",
+    "현대차": "005380.KS",
+    "KB금융": "105560.KS",
+    "셀트리온": "068270.KS",
+}
+
+STOCKS_US = {
     "애플": "AAPL",
     "테슬라": "TSLA",
     "엔비디아": "NVDA",
+    "알파벳A": "GOOGL",
+    "아마존": "AMZN",
+    "메타": "META",
+    "마이크로소프트": "MSFT",
+    "샌디스크": "SNDK",
 }
 
+market = st.radio("시장 선택", ["🇰🇷 국내", "🇺🇸 해외"], horizontal=True)
+STOCKS = STOCKS_KR if market == "🇰🇷 국내" else STOCKS_US
 col1, col2 = st.columns(2)
 with col1:
     selected = st.selectbox("종목 선택", list(STOCKS.keys()))
