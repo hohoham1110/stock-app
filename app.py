@@ -47,7 +47,6 @@ df = yf.download(ticker, period=period, auto_adjust=False)
 if df.empty:
     st.error("데이터를 불러올 수 없습니다.")
 else:
-    # 컬럼 평탄화
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
 
@@ -61,20 +60,51 @@ else:
     high = float(df["High"].iloc[-1])
     low = float(df["Low"].iloc[-1])
 
-# 일별 시세 + 매매신호 나란히
+    st.subheader("💰 현재가 정보")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("현재가", f"{current:,.0f}", f"{change:+,.0f} ({change_pct:+.2f}%)")
+    c2.metric("전일 종가", f"{prev:,.0f}")
+    c3.metric("당일 고가/저가", f"{high:,.0f} / {low:,.0f}")
+    c4.metric("거래량", f"{float(volume.iloc[-1]):,.0f}")
+
+    # 지표 계산
+    rsi = RSIIndicator(close).rsi()
+    macd_obj = MACD(close)
+    macd = macd_obj.macd()
+    macd_signal = macd_obj.macd_signal()
+    bb = BollingerBands(close)
+    bb_high = bb.bollinger_hband()
+    bb_low = bb.bollinger_lband()
+
+    latest_rsi = float(rsi.iloc[-1])
+    latest_macd = float(macd.iloc[-1])
+    latest_signal = float(macd_signal.iloc[-1])
+    latest_bb_low = float(bb_low.iloc[-1])
+    latest_bb_high = float(bb_high.iloc[-1])
+
+    buy_signals = 0
+    sell_signals = 0
+    if latest_rsi < 30: buy_signals += 1
+    if latest_rsi > 70: sell_signals += 1
+    if latest_macd > latest_signal: buy_signals += 1
+    if latest_macd < latest_signal: sell_signals += 1
+    if current < latest_bb_low: buy_signals += 1
+    if current > latest_bb_high: sell_signals += 1
+
+    # 일별시세 + 매매신호 나란히
     st.subheader("📅 일별 시세 & 📊 매매 신호")
     left, right = st.columns([1, 1])
 
     with left:
-        table = df[["Close","Volume"]].copy()
+        table = df[["Close", "Volume"]].copy()
         table = table.iloc[::-1]
         table.index = [str(i)[:10] for i in table.index]
-        table.columns = ["종가","거래량"]
+        table.columns = ["종가", "거래량"]
 
         prev_closes = list(df["Close"].iloc[::-1])
         changes = []
-        for i, val in enumerate(prev_closes):
-            if i == len(prev_closes)-1:
+        for i in range(len(prev_closes)):
+            if i == len(prev_closes) - 1:
                 changes.append("-")
             else:
                 diff = float(prev_closes[i]) - float(prev_closes[i+1])
@@ -84,15 +114,18 @@ else:
         table["등락률"] = changes
         table["종가"] = table["종가"].apply(lambda x: f"{float(x):,.0f}")
         table["거래량"] = table["거래량"].apply(lambda x: f"{float(x):,.0f}")
-        table = table[["종가","등락률","거래량"]]
+        table = table[["종가", "등락률", "거래량"]]
 
         def color_change(val):
-            if val == "-": return ""
-            if val.startswith("+"): return "color: red"
-            if val.startswith("-"): return "color: blue"
+            if val == "-":
+                return ""
+            if val.startswith("+"):
+                return "color: red"
+            if val.startswith("-"):
+                return "color: blue"
             return ""
 
-    styled = table.style.map(color_change, subset=["등락률"])
+        styled = table.style.map(color_change, subset=["등락률"])
         st.dataframe(styled, use_container_width=True)
 
     with right:
@@ -111,16 +144,6 @@ else:
             st.error(f"🔴 매도 타이밍! (신호 {sell_signals}/3)")
         else:
             st.info("⏳ 관망 구간")
-    c1.metric("RSI", f"{latest_rsi:.1f}", "🟢 과매도(매수)" if latest_rsi < 30 else "🔴 과매수(매도)" if latest_rsi > 70 else "⚪ 중립")
-    c2.metric("MACD", f"{latest_macd:.2f}", "🟢 매수" if latest_macd > latest_signal else "🔴 매도")
-    c3.metric("볼린저밴드", f"{current:,.0f}", "🟢 매수" if current < latest_bb_low else "🔴 매도" if current > latest_bb_high else "⚪ 중립")
-
-    if buy_signals >= 2:
-        st.success(f"✅ 매수 타이밍! (신호 {buy_signals}/3)")
-    elif sell_signals >= 2:
-        st.error(f"🔴 매도 타이밍! (신호 {sell_signals}/3)")
-    else:
-        st.info("⏳ 관망 구간")
 
     # 차트
     fig = make_subplots(rows=3, cols=1, shared_xaxes=True,
