@@ -92,7 +92,7 @@ else:
             if val.startswith("-"): return "color: blue"
             return ""
 
-        styled = table.style.applymap(color_change, subset=["등락률"])
+    styled = table.style.map(color_change, subset=["등락률"])
         st.dataframe(styled, use_container_width=True)
 
     with right:
