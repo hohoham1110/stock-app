@@ -83,7 +83,8 @@ else:
     st.subheader("📅 일별 시세")
     table = df[["Open","High","Low","Close","Volume"]].copy()
     table.columns = ["시가","고가","저가","종가","거래량"]
-    table = table.sort_index(ascending=False)
+    table = table.sort_index(ascending=False).reset_index()
+    table.rename(columns={"index": "날짜", "Date": "날짜"}, inplace=True)
     for col in ["시가","고가","저가","종가"]:
         table[col] = table[col].apply(lambda x: f"{x:,.0f}")
     table["거래량"] = table["거래량"].apply(lambda x: f"{x:,.0f}")
