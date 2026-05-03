@@ -44,13 +44,18 @@ ticker = STOCKS[selected]
 df = yf.download(ticker, period=period, auto_adjust=False)
 
 # 오늘 데이터 별도 갱신
-today = yf.download(ticker, period="1d", interval="1m", auto_adjust=False)
-if not today.empty:
-    df_today = today.resample("D").agg({
-        "Open": "first", "High": "max",
-        "Low": "min", "Close": "last", "Volume": "sum"
-    })
-    df = pd.concat([df[:-1], df_today])
+try:
+    today = yf.download(ticker, period="1d", interval="1m", auto_adjust=False)
+    if not today.empty:
+        today.columns = today.columns.get_level_values(0)
+        df_today = today.resample("D").agg({
+            "Open": "first", "High": "max",
+            "Low": "min", "Close": "last", "Volume": "sum"
+        })
+        df.columns = df.columns.get_level_values(0)
+        df = pd.concat([df[:-1], df_today])
+except:
+    df.columns = df.columns.get_level_values(0)
 
 if df.empty:
     st.error("데이터를 불러올 수 없습니다.")
