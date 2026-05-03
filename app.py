@@ -34,6 +34,7 @@ STOCKS_US = {
 
 market = st.radio("시장 선택", ["🇰🇷 국내", "🇺🇸 해외"], horizontal=True)
 STOCKS = STOCKS_KR if market == "🇰🇷 국내" else STOCKS_US
+
 col1, col2 = st.columns(2)
 with col1:
     selected = st.selectbox("종목 선택", list(STOCKS.keys()))
@@ -43,51 +44,40 @@ with col2:
 ticker = STOCKS[selected]
 df = yf.download(ticker, period=period, auto_adjust=False)
 
-# 오늘 데이터 별도 갱신
-try:
-    today = yf.download(ticker, period="1d", interval="1m", auto_adjust=False)
-    if not today.empty:
-        today.columns = today.columns.get_level_values(0)
-        df_today = today.resample("D").agg({
-            "Open": "first", "High": "max",
-            "Low": "min", "Close": "last", "Volume": "sum"
-        })
-        df.columns = df.columns.get_level_values(0)
-        df = pd.concat([df[:-1], df_today])
-except:
-    df.columns = df.columns.get_level_values(0)
-
 if df.empty:
     st.error("데이터를 불러올 수 없습니다.")
 else:
-    close = df["Close"].squeeze()
-    volume = df["Volume"].squeeze()
+    # 컬럼 평탄화
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
 
-    # 현재가 정보
-    current = close.iloc[-1]
-    prev = close.iloc[-2]
+    close = df["Close"]
+    volume = df["Volume"]
+
+    current = float(close.iloc[-1])
+    prev = float(close.iloc[-2])
     change = current - prev
     change_pct = (change / prev) * 100
-    high = df["High"].squeeze().iloc[-1]
-    low = df["Low"].squeeze().iloc[-1]
+    high = float(df["High"].iloc[-1])
+    low = float(df["Low"].iloc[-1])
 
     # 현재가 표시
     st.subheader("💰 현재가 정보")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("현재가", f"{current:,.0f}원", f"{change:+,.0f} ({change_pct:+.2f}%)")
-    c2.metric("전일 종가", f"{prev:,.0f}원")
-    c3.metric("당일 고가/저가", f"{high:,.0f} / {low:,.0f}원")
-    c4.metric("거래량", f"{volume.iloc[-1]:,.0f}")
+    c1.metric("현재가", f"{current:,.0f}", f"{change:+,.0f} ({change_pct:+.2f}%)")
+    c2.metric("전일 종가", f"{prev:,.0f}")
+    c3.metric("당일 고가/저가", f"{high:,.0f} / {low:,.0f}")
+    c4.metric("거래량", f"{float(volume.iloc[-1]):,.0f}")
 
-# 일별 데이터 테이블
+    # 일별 시세
     st.subheader("📅 일별 시세")
     table = df[["Open","High","Low","Close","Volume"]].copy()
-    table.columns = ["시가","고가","저가","종가","거래량"]
-    table.index = pd.to_datetime(table.index).strftime("%Y-%m-%d")
     table = table.iloc[::-1]
+    table.index = [str(i)[:10] for i in table.index]
+    table.columns = ["시가","고가","저가","종가","거래량"]
     for col in ["시가","고가","저가","종가"]:
-        table[col] = table[col].apply(lambda x: f"{x:,.0f}")
-    table["거래량"] = table["거래량"].apply(lambda x: f"{x:,.0f}")
+        table[col] = table[col].apply(lambda x: f"{float(x):,.0f}")
+    table["거래량"] = table["거래량"].apply(lambda x: f"{float(x):,.0f}")
     st.dataframe(table, use_container_width=True)
 
     # 지표 계산
@@ -99,12 +89,11 @@ else:
     bb_high = bb.bollinger_hband()
     bb_low = bb.bollinger_lband()
 
-    # 매수/매도 신호
-    latest_rsi = rsi.iloc[-1]
-    latest_macd = macd.iloc[-1]
-    latest_signal = macd_signal.iloc[-1]
-    latest_bb_low = bb_low.iloc[-1]
-    latest_bb_high = bb_high.iloc[-1]
+    latest_rsi = float(rsi.iloc[-1])
+    latest_macd = float(macd.iloc[-1])
+    latest_signal = float(macd_signal.iloc[-1])
+    latest_bb_low = float(bb_low.iloc[-1])
+    latest_bb_high = float(bb_high.iloc[-1])
 
     buy_signals = 0
     sell_signals = 0
@@ -128,31 +117,27 @@ else:
     else:
         st.info("⏳ 관망 구간")
 
-    # 차트 (캔들 + 거래량 + RSI)
+    # 차트
     fig = make_subplots(rows=3, cols=1, shared_xaxes=True,
                         row_heights=[0.6, 0.2, 0.2],
                         subplot_titles=(f"{selected} 캔들차트", "거래량", "RSI"))
 
-    # 캔들
     fig.add_trace(go.Candlestick(
-        x=df.index, open=df["Open"].squeeze(),
-        high=df["High"].squeeze(), low=df["Low"].squeeze(), close=close,
+        x=df.index, open=df["Open"], high=df["High"], low=df["Low"], close=close,
         name="캔들", increasing_line_color="red", decreasing_line_color="blue"
     ), row=1, col=1)
     fig.add_trace(go.Scatter(x=df.index, y=bb_high, line=dict(color="orange", dash="dash", width=1), name="BB상단"), row=1, col=1)
     fig.add_trace(go.Scatter(x=df.index, y=bb_low, line=dict(color="purple", dash="dash", width=1), name="BB하단"), row=1, col=1)
 
-    # 거래량
-    colors = ["red" if c >= o else "blue" for c, o in zip(df["Close"].squeeze(), df["Open"].squeeze())]
+    colors = ["red" if float(c) >= float(o) else "blue" for c, o in zip(df["Close"], df["Open"])]
     fig.add_trace(go.Bar(x=df.index, y=volume, marker_color=colors, name="거래량"), row=2, col=1)
 
-    # RSI
     fig.add_trace(go.Scatter(x=df.index, y=rsi, line=dict(color="green", width=1), name="RSI"), row=3, col=1)
     fig.add_hline(y=70, line_dash="dash", line_color="red", row=3, col=1)
     fig.add_hline(y=30, line_dash="dash", line_color="blue", row=3, col=1)
 
     fig.update_layout(height=800, xaxis_rangeslider_visible=False, showlegend=False)
-    fig.update_yaxes(title_text="가격(원)", row=1, col=1)
+    fig.update_yaxes(title_text="가격", row=1, col=1)
     fig.update_yaxes(title_text="거래량", row=2, col=1)
     fig.update_yaxes(title_text="RSI", row=3, col=1)
 
