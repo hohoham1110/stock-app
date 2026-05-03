@@ -61,55 +61,56 @@ else:
     high = float(df["High"].iloc[-1])
     low = float(df["Low"].iloc[-1])
 
-# 일별 시세 테이블
-    st.subheader("📅 일별 시세")
-    table = df[["Close","Volume"]].copy()
-    table = table.iloc[::-1]
-    table.index = [str(i)[:10] for i in table.index]
-    table.columns = ["종가","거래량"]
+# 일별 시세 + 매매신호 나란히
+    st.subheader("📅 일별 시세 & 📊 매매 신호")
+    left, right = st.columns([1, 1])
 
-    prev_closes = list(df["Close"].iloc[::-1])
-    changes = []
-    for i, val in enumerate(prev_closes):
-        if i == len(prev_closes)-1:
-            changes.append("-")
+    with left:
+        table = df[["Close","Volume"]].copy()
+        table = table.iloc[::-1]
+        table.index = [str(i)[:10] for i in table.index]
+        table.columns = ["종가","거래량"]
+
+        prev_closes = list(df["Close"].iloc[::-1])
+        changes = []
+        for i, val in enumerate(prev_closes):
+            if i == len(prev_closes)-1:
+                changes.append("-")
+            else:
+                diff = float(prev_closes[i]) - float(prev_closes[i+1])
+                pct = diff / float(prev_closes[i+1]) * 100
+                changes.append(f"{pct:+.2f}%")
+
+        table["등락률"] = changes
+        table["종가"] = table["종가"].apply(lambda x: f"{float(x):,.0f}")
+        table["거래량"] = table["거래량"].apply(lambda x: f"{float(x):,.0f}")
+        table = table[["종가","등락률","거래량"]]
+
+        def color_change(val):
+            if val == "-": return ""
+            if val.startswith("+"): return "color: red"
+            if val.startswith("-"): return "color: blue"
+            return ""
+
+        styled = table.style.applymap(color_change, subset=["등락률"])
+        st.dataframe(styled, use_container_width=True)
+
+    with right:
+        st.markdown("### 매매 신호")
+        rsi_label = "🟢 과매도(매수)" if latest_rsi < 30 else "🔴 과매수(매도)" if latest_rsi > 70 else "⚪ 중립"
+        macd_label = "🟢 매수" if latest_macd > latest_signal else "🔴 매도"
+        bb_label = "🟢 매수" if current < latest_bb_low else "🔴 매도" if current > latest_bb_high else "⚪ 중립"
+
+        st.metric("RSI", f"{latest_rsi:.1f}", rsi_label)
+        st.metric("MACD", f"{latest_macd:.2f}", macd_label)
+        st.metric("볼린저밴드", f"{current:,.0f}", bb_label)
+
+        if buy_signals >= 2:
+            st.success(f"✅ 매수 타이밍! (신호 {buy_signals}/3)")
+        elif sell_signals >= 2:
+            st.error(f"🔴 매도 타이밍! (신호 {sell_signals}/3)")
         else:
-            diff = float(prev_closes[i]) - float(prev_closes[i+1])
-            pct = diff / float(prev_closes[i+1]) * 100
-            changes.append(f"{pct:+.2f}%")
-
-    table["등락률"] = changes
-    table["종가"] = table["종가"].apply(lambda x: f"{float(x):,.0f}")
-    table["거래량"] = table["거래량"].apply(lambda x: f"{float(x):,.0f}")
-    table = table[["종가","등락률","거래량"]]
-    st.dataframe(table, use_container_width=True)
-
-    # 지표 계산
-    rsi = RSIIndicator(close).rsi()
-    macd_obj = MACD(close)
-    macd = macd_obj.macd()
-    macd_signal = macd_obj.macd_signal()
-    bb = BollingerBands(close)
-    bb_high = bb.bollinger_hband()
-    bb_low = bb.bollinger_lband()
-
-    latest_rsi = float(rsi.iloc[-1])
-    latest_macd = float(macd.iloc[-1])
-    latest_signal = float(macd_signal.iloc[-1])
-    latest_bb_low = float(bb_low.iloc[-1])
-    latest_bb_high = float(bb_high.iloc[-1])
-
-    buy_signals = 0
-    sell_signals = 0
-    if latest_rsi < 30: buy_signals += 1
-    if latest_rsi > 70: sell_signals += 1
-    if latest_macd > latest_signal: buy_signals += 1
-    if latest_macd < latest_signal: sell_signals += 1
-    if current < latest_bb_low: buy_signals += 1
-    if current > latest_bb_high: sell_signals += 1
-
-    st.subheader("📊 매매 신호")
-    c1, c2, c3 = st.columns(3)
+            st.info("⏳ 관망 구간")
     c1.metric("RSI", f"{latest_rsi:.1f}", "🟢 과매도(매수)" if latest_rsi < 30 else "🔴 과매수(매도)" if latest_rsi > 70 else "⚪ 중립")
     c2.metric("MACD", f"{latest_macd:.2f}", "🟢 매수" if latest_macd > latest_signal else "🔴 매도")
     c3.metric("볼린저밴드", f"{current:,.0f}", "🟢 매수" if current < latest_bb_low else "🔴 매도" if current > latest_bb_high else "⚪ 중립")
