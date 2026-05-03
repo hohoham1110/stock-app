@@ -41,7 +41,7 @@ with col2:
     period = st.selectbox("기간", ["1mo", "3mo", "6mo", "1y", "2y"], index=3)
 
 ticker = STOCKS[selected]
-df = yf.download(ticker, period=period)
+df = yf.download(ticker, period=period, auto_adjust=False)
 
 if df.empty:
     st.error("데이터를 불러올 수 없습니다.")
