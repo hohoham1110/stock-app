@@ -79,16 +79,15 @@ else:
     c3.metric("당일 고가/저가", f"{high:,.0f} / {low:,.0f}원")
     c4.metric("거래량", f"{volume.iloc[-1]:,.0f}")
 
-    # 일별 데이터 테이블
+# 일별 데이터 테이블
     st.subheader("📅 일별 시세")
     table = df[["Open","High","Low","Close","Volume"]].copy()
     table.columns = ["시가","고가","저가","종가","거래량"]
-    table = table.sort_index(ascending=False).reset_index()
-    table.rename(columns={"index": "날짜", "Date": "날짜"}, inplace=True)
+    table.index = pd.to_datetime(table.index).strftime("%Y-%m-%d")
+    table = table.iloc[::-1]
     for col in ["시가","고가","저가","종가"]:
         table[col] = table[col].apply(lambda x: f"{x:,.0f}")
     table["거래량"] = table["거래량"].apply(lambda x: f"{x:,.0f}")
-    table.index = table.index.strftime("%Y-%m-%d")
     st.dataframe(table, use_container_width=True)
 
     # 지표 계산
