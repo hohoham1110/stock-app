@@ -48,9 +48,20 @@ else:
     st.subheader("💰 현재가 정보")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("현재가", f"{current:,.0f}원", f"{change:+,.0f} ({change_pct:+.2f}%)")
-    c2.metric("당일 고가", f"{high:,.0f}원")
-    c3.metric("당일 저가", f"{low:,.0f}원")
+    c2.metric("전일 종가", f"{prev:,.0f}원")
+    c3.metric("당일 고가/저가", f"{high:,.0f} / {low:,.0f}원")
     c4.metric("거래량", f"{volume.iloc[-1]:,.0f}")
+
+    # 일별 데이터 테이블
+    st.subheader("📅 일별 시세")
+    table = df[["Open","High","Low","Close","Volume"]].copy()
+    table.columns = ["시가","고가","저가","종가","거래량"]
+    table = table.sort_index(ascending=False)
+    for col in ["시가","고가","저가","종가"]:
+        table[col] = table[col].apply(lambda x: f"{x:,.0f}")
+    table["거래량"] = table["거래량"].apply(lambda x: f"{x:,.0f}")
+    table.index = table.index.strftime("%Y-%m-%d")
+    st.dataframe(table, use_container_width=True)
 
     # 지표 계산
     rsi = RSIIndicator(close).rsi()
