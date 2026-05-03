@@ -61,23 +61,27 @@ else:
     high = float(df["High"].iloc[-1])
     low = float(df["Low"].iloc[-1])
 
-    # 현재가 표시
-    st.subheader("💰 현재가 정보")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("현재가", f"{current:,.0f}", f"{change:+,.0f} ({change_pct:+.2f}%)")
-    c2.metric("전일 종가", f"{prev:,.0f}")
-    c3.metric("당일 고가/저가", f"{high:,.0f} / {low:,.0f}")
-    c4.metric("거래량", f"{float(volume.iloc[-1]):,.0f}")
-
-    # 일별 시세
+# 일별 시세 테이블
     st.subheader("📅 일별 시세")
-    table = df[["Open","High","Low","Close","Volume"]].copy()
+    table = df[["Close","Volume"]].copy()
     table = table.iloc[::-1]
     table.index = [str(i)[:10] for i in table.index]
-    table.columns = ["시가","고가","저가","종가","거래량"]
-    for col in ["시가","고가","저가","종가"]:
-        table[col] = table[col].apply(lambda x: f"{float(x):,.0f}")
+    table.columns = ["종가","거래량"]
+
+    prev_closes = list(df["Close"].iloc[::-1])
+    changes = []
+    for i, val in enumerate(prev_closes):
+        if i == len(prev_closes)-1:
+            changes.append("-")
+        else:
+            diff = float(prev_closes[i]) - float(prev_closes[i+1])
+            pct = diff / float(prev_closes[i+1]) * 100
+            changes.append(f"{pct:+.2f}%")
+
+    table["등락률"] = changes
+    table["종가"] = table["종가"].apply(lambda x: f"{float(x):,.0f}")
     table["거래량"] = table["거래량"].apply(lambda x: f"{float(x):,.0f}")
+    table = table[["종가","등락률","거래량"]]
     st.dataframe(table, use_container_width=True)
 
     # 지표 계산
